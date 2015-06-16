@@ -175,29 +175,41 @@ def corrupt_midi(midi_object, original_times, warp_std=5.,
     -------
     adjusted_times : np.ndarray
         `original_times` adjusted by the cropping
+    diagnostics : dict
+        Diagnostics about the corruptions applied
     '''
+    # Store all keyword arguments as diagnostics
+    diagnostics = dict((k, v) for (k, v) in locals().iteritems()
+                       if isinstance(v, (int, long, float)))
     # Smoothly warp times
     warp_offset = warp_time(original_times, warp_std)
     # Start with no cropping offset, as it will depend on the probabilities
     crop_offset = np.zeros(original_times.shape[0])
-    if np.random.rand() < start_crop_prob:
+    # Store whether we are cropping out the beginning
+    diagnostics['crop_start'] = np.random.rand() < start_crop_prob
+    if diagnostics['crop_start']:
         # Crop out the first 10%
         end_time = .1*original_times[-1]
         crop_offset += crop_time(midi_object, original_times, 0, end_time)
-    if np.random.rand() < end_crop_prob:
+    diagnostics['crop_end'] = np.random.rand() < end_crop_prob
+    if diagnostics['crop_end']:
         # Crop out the last 10%
         start_time = .9*original_times[-1]
         crop_offset += crop_time(
             midi_object, original_times, start_time, original_times[-1])
-    if np.random.rand() < middle_crop_prob:
+    diagnostics['crop_middle'] = np.random.rand() < middle_crop_prob
+    if diagnostics['crop_middle']:
         # Randomly crop out 1% from somewhere in the middle
         rand = np.random.rand()
         offset = original_times[-1]*(rand*.8 + .1)
         crop_offset += crop_time(
             midi_object, original_times, offset,
             offset + .01*original_times[-1])
+    # Store the number of instruments originally, and after optionally removing
+    diagnostics['n_instruments_before'] = len(midi_object.instruments)
     # Randomly remove instruments
     remove_instruments(midi_object, remove_inst_prob)
+    diagnostics['n_instruments_after'] = len(midi_object.instruments)
     # Corrupt their program numbers
     corrupt_instruments(midi_object, change_inst_prob)
     # Adjust velocity randomly
@@ -205,4 +217,4 @@ def corrupt_midi(midi_object, original_times, warp_std=5.,
     # Apply the time warps computed above
     adjusted_times = original_times + warp_offset + crop_offset
     midi_object.adjust_times(original_times, adjusted_times)
-    return adjusted_times
+    return adjusted_times, diagnostics
