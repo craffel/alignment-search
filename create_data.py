@@ -163,11 +163,16 @@ if __name__ == '__main__':
             # Load in and extract features/diagnostic information for the file
             midi_object = pretty_midi.PrettyMIDI(midi_filename)
             data = process_one_file(midi_object)
+            data['original_file'] = os.path.abspath(midi_filename)
+            corrupted_filename = os.path.abspath(os.path.join(
+                parameters['output_path'], os.path.basename(midi_filename)))
+            midi_object.write(corrupted_filename)
+            data['corrupted_file'] = corrupted_filename
             # Write out the npz
-            output_filename = os.path.join(
+            output_npz = os.path.join(
                 parameters['output_path'],
                 os.path.splitext(os.path.basename(midi_filename))[0] + '.npz')
-            np.savez_compressed(output_filename, **data)
+            np.savez_compressed(output_npz, **data)
         except Exception:
             print "Error parsing {}:".format(midi_filename)
             traceback.print_exc()
