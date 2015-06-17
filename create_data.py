@@ -109,7 +109,7 @@ def extract_features(midi_object):
     while tempo < 160:
         tempo *= 2
     # Estimate the beats, forcing the tempo to be near the MIDI tempo
-    beat_frames = librosa.beat.beat_track(midi_audio, bpm=tempo)[0]
+    beat_frames = librosa.beat.beat_track(midi_audio, bpm=tempo)[1]
     beat_times = librosa.frames_to_time(beat_frames, sr=FS)
 
     return {'times': times, 'gram': gram, 'chroma': chroma, 'beat_frames':
