@@ -146,7 +146,7 @@ def corrupt_velocity(midi_object, std):
 def corrupt_midi(midi_object, original_times, warp_std=5.,
                  start_crop_prob=.5, end_crop_prob=.5,
                  middle_crop_prob=.1, remove_inst_prob=.1,
-                 change_inst_prob=1., velocity_std=2.):
+                 change_inst_prob=1., velocity_std=.2):
     '''
     Apply a series of corruptions to a MIDI object.
 
