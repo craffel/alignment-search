@@ -13,6 +13,7 @@ import sys
 import argparse
 import glob
 import traceback
+import joblib
 
 FS = 22050
 NOTE_START = 36
@@ -176,5 +177,6 @@ if __name__ == '__main__':
     # Create the output directory if it doesn't exist
     if not os.path.exists(parameters['output_path']):
         os.makedirs(parameters['output_path'])
-    for midi_filename in glob.glob(parameters['midi_glob']):
-        process_one_file(midi_filename, parameters['output_path'])
+    joblib.Parallel(n_jobs=10, verbose=51)(
+        joblib.delayed(process_one_file)(midi_file, parameters['output_path'])
+        for midi_file in glob.glob(parameters['midi_glob']))
