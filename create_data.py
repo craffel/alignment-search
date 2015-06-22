@@ -116,35 +116,53 @@ def extract_features(midi_object):
             beat_frames, 'beat_times': beat_times}
 
 
-def process_one_file(midi_object):
+def process_one_file(midi_filename, output_path):
     '''
     Create features and diagnostics dict for original and corrupted MIDI file
 
     Parameters
     ----------
-    midi_object : pretty_midi.PrettyMIDI
-       MIDI object to corrupt.
+    midi_filename : str
+       Path to a MIDI file to corrupt.
+    output_path : str
+        Base path to write out .npz/.mid
 
     Returns
     -------
     features : dict
         Features of original and corrupted MIDI, with diagnostics
     '''
-    orig_features = extract_features(midi_object)
-    # Prepend keys with 'orig'
-    orig_features = dict(
-        ('orig_{}'.format(k), v) for (k, v) in orig_features.iteritems())
-    # Corrupt MIDI object (in place)
-    adjusted_times, diagnostics = corrupt_midi.corrupt_midi(
-        midi_object, orig_features['orig_times'])
-    # Get features for corrupted MIDI
-    corrupted_features = extract_features(midi_object)
-    corrupted_features = dict(('corrupted_{}'.format(k), v)
-                              for (k, v) in corrupted_features.iteritems())
-    # Combine features, diagnostics into one fat dict
-    return dict(i for i in itertools.chain(
-        orig_features.iteritems(), [('adjusted_times', adjusted_times)],
-        diagnostics.iteritems(), corrupted_features.iteritems()))
+    try:
+        # Load in and extract features/diagnostic information for the file
+        midi_object = pretty_midi.PrettyMIDI(midi_filename)
+        orig_features = extract_features(midi_object)
+        # Prepend keys with 'orig'
+        orig_features = dict(
+            ('orig_{}'.format(k), v) for (k, v) in orig_features.iteritems())
+        # Corrupt MIDI object (in place)
+        adjusted_times, diagnostics = corrupt_midi.corrupt_midi(
+            midi_object, orig_features['orig_times'])
+        # Get features for corrupted MIDI
+        corrupted_features = extract_features(midi_object)
+        corrupted_features = dict(('corrupted_{}'.format(k), v)
+                                for (k, v) in corrupted_features.iteritems())
+        # Combine features, diagnostics into one fat dict
+        data = dict(i for i in itertools.chain(
+            orig_features.iteritems(), [('adjusted_times', adjusted_times)],
+            diagnostics.iteritems(), corrupted_features.iteritems()))
+        data['original_file'] = os.path.abspath(midi_filename)
+        corrupted_filename = os.path.abspath(os.path.join(
+            output_path, os.path.basename(midi_filename)))
+        midi_object.write(corrupted_filename)
+        data['corrupted_file'] = corrupted_filename
+        # Write out the npz
+        output_npz = os.path.join(
+            output_path,
+            os.path.splitext(os.path.basename(midi_filename))[0] + '.npz')
+        np.savez_compressed(output_npz, **data)
+    except Exception:
+        print "Error parsing {}:".format(midi_filename)
+        traceback.print_exc()
 
 if __name__ == '__main__':
     # Parse command-line arguments
@@ -159,20 +177,4 @@ if __name__ == '__main__':
     if not os.path.exists(parameters['output_path']):
         os.makedirs(parameters['output_path'])
     for midi_filename in glob.glob(parameters['midi_glob']):
-        try:
-            # Load in and extract features/diagnostic information for the file
-            midi_object = pretty_midi.PrettyMIDI(midi_filename)
-            data = process_one_file(midi_object)
-            data['original_file'] = os.path.abspath(midi_filename)
-            corrupted_filename = os.path.abspath(os.path.join(
-                parameters['output_path'], os.path.basename(midi_filename)))
-            midi_object.write(corrupted_filename)
-            data['corrupted_file'] = corrupted_filename
-            # Write out the npz
-            output_npz = os.path.join(
-                parameters['output_path'],
-                os.path.splitext(os.path.basename(midi_filename))[0] + '.npz')
-            np.savez_compressed(output_npz, **data)
-        except Exception:
-            print "Error parsing {}:".format(midi_filename)
-            traceback.print_exc()
+        process_one_file(midi_filename, parameters['output_path'])
