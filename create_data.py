@@ -39,10 +39,8 @@ def extract_cqt(audio_data):
     # Compute CQT
     cqt = librosa.cqt(audio_data, sr=FS, fmin=librosa.midi_to_hz(NOTE_START),
                       n_bins=N_NOTES, tuning=0.)
-    # Transpose so that rows are spectra
-    cqt = cqt.T
     # Compute the time of each frame
-    times = librosa.frames_to_time(np.arange(cqt.shape[0]), sr=FS)
+    times = librosa.frames_to_time(np.arange(cqt.shape[1]), sr=FS)
     return cqt, times
 
 
