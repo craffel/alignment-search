@@ -105,7 +105,7 @@ if __name__ == '__main__':
         # Beat sync, or don't
         'beat_sync': hp.choice('beat_sync', [True, False]),
         # Don't normalize, max-norm, L1-norm, or L2 norm
-        'norm': hp.choice('norm', [None, 'inf', 1, 2]),
+        'norm': hp.choice('norm', [None, np.inf, 1, 2]),
         # Whether or not to z-score (standardize) the feature dimensions
         'standardize': hp.choice('standardize', [True, False]),
         # Compute the log magnitude of the features
