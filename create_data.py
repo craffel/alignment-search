@@ -100,9 +100,6 @@ def extract_features(midi_object):
     midi_audio = fast_fluidsynth(midi_object)
     # Compute constant-Q transform
     gram, times = extract_cqt(midi_audio)
-    # Compute chromagrapm from constant-Q
-    chroma = librosa.feature.chroma_cqt(
-        C=gram, fmin=librosa.midi_to_hz(NOTE_START))
     # Estimate the tempo from the MIDI data
     tempo = midi_object.estimate_tempo()
     # Usually, estimate_tempo gives tempos around 200 bpm, which is usually
@@ -113,8 +110,8 @@ def extract_features(midi_object):
     beat_frames = librosa.beat.beat_track(midi_audio, bpm=tempo)[1]
     beat_times = librosa.frames_to_time(beat_frames, sr=FS)
 
-    return {'times': times, 'gram': gram, 'chroma': chroma, 'beat_frames':
-            beat_frames, 'beat_times': beat_times}
+    return {'times': times, 'gram': gram, 'beat_frames': beat_frames,
+            'beat_times': beat_times}
 
 
 def process_one_file(midi_filename, output_path):
