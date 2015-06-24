@@ -41,6 +41,8 @@ def extract_cqt(audio_data):
                       n_bins=N_NOTES, tuning=0.)
     # Compute the time of each frame
     times = librosa.frames_to_time(np.arange(cqt.shape[1]), sr=FS)
+    # Use float32 for the cqt to save space/memory
+    cqt = cqt.astype(np.float32)
     return cqt, times
 
 
