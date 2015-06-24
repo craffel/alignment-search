@@ -78,6 +78,8 @@ def objective(params):
         # Compute a distance matrix according to the supplied metric
         distance_matrix = scipy.spatial.distance.cdist(
             orig_gram, corrupted_gram, params['metric'])
+        # Set any NaN values to the largest distance
+        distance_matrix[np.isnan(distance_matrix)] = np.nanmax(distance_matrix)
         # Get DTW path and score
         add_pen = np.percentile(distance_matrix, params['add_pen'])
         p, q, score = djitw.dtw(distance_matrix, params['gully'], add_pen)
