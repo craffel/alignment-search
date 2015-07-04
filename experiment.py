@@ -80,9 +80,16 @@ def objective(params):
             orig_gram, corrupted_gram, params['metric'])
         # Set any NaN values to the largest distance
         distance_matrix[np.isnan(distance_matrix)] = np.nanmax(distance_matrix)
+        # Compute a band mask or set to None for no mask
+        if params['band_mask']:
+            mask = np.zeros(distance_matrix.shape, dtype=np.bool)
+            djitw.band_mask(1 - params['gully'], mask)
+        else:
+            mask = None
         # Get DTW path and score
         add_pen = np.percentile(distance_matrix, params['add_pen'])
-        p, q, score = djitw.dtw(distance_matrix, params['gully'], add_pen)
+        p, q, score = djitw.dtw(distance_matrix, params['gully'], add_pen,
+                                params['mul_pen'], mask)
         if params['beat_sync']:
             # If we are beat syncing, we have to compare against beat times
             # so we index adjusted_times by the beat indices
@@ -124,8 +131,12 @@ if __name__ == '__main__':
                    'options': ['euclidean', 'sqeuclidean', 'cosine']},
         # DTW additive penalty
         'add_pen': {'type': 'INT', 'size': 1, 'min': 0, 'max': 100},
+        # DTW multiplicative penalty
+        'mul_pen': {'type': 'FLOAT', 'size': 1, 'min': 0, 'max': 2.},
         # DTW end point tolerance
-        'gully': {'type': 'FLOAT', 'size': 1, 'min': 0, 'max': 1.}}
+        'gully': {'type': 'FLOAT', 'size': 1, 'min': 0, 'max': 1.},
+        # Whether to constrain the path to within the tolerance
+        'band_mask': {'type': 'ENUM', 'size': 1, 'options': [True, False]}}
 
     # Set up spearmint options dict
     options = {'language': 'PYTHON',
