@@ -141,7 +141,7 @@ if __name__ == '__main__':
     # Set up spearmint options dict
     options = {'language': 'PYTHON',
                'main-file': os.path.basename(__file__),
-               'experiment-name': 'noconfig',
+               'experiment-name': 'alignment_search',
                'likelihood': 'NOISELESS',
                'variables': space}
 
