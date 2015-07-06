@@ -2,6 +2,7 @@
 
 import pymongo
 import spearmint.utils.compression
+import numpy as np
 
 
 def get_experiment_results(experiment_name):
@@ -47,3 +48,26 @@ def get_experiment_results(experiment_name):
             params.append(result_params_out)
             objectives.append(result['values']['main'])
     return params, objectives
+
+
+def get_best_result(experiment_name):
+    """Get the parameters and objective corresponding to the best result for an
+    experiment.
+
+    Parameters
+    ----------
+    experiment_name : str
+        Name of the experiment (database collection)
+
+    Returns
+    -------
+    params : dict
+        dict of parameter name/value associations for the best objective value
+    objective : float
+        Best achived objective value, corresponding to the parameter settings
+        in params
+    """
+    # This function is just a wrapper around using argmin
+    params, objectives = get_experiment_results(experiment_name)
+    best_result = np.argmin(objectives)
+    return params[best_result], objectives[best_result]
