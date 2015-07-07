@@ -87,7 +87,7 @@ def objective(params):
         else:
             mask = None
         # Get DTW path and score
-        add_pen = np.percentile(distance_matrix, params['add_pen'])
+        add_pen = params['add_pen']*np.median(distance_matrix)
         p, q, score = djitw.dtw(distance_matrix, params['gully'], add_pen,
                                 params['mul_pen'], mask)
         if params['beat_sync']:
@@ -130,7 +130,7 @@ if __name__ == '__main__':
         'metric': {'type': 'ENUM', 'size': 1,
                    'options': ['euclidean', 'sqeuclidean', 'cosine']},
         # DTW additive penalty
-        'add_pen': {'type': 'INT', 'size': 1, 'min': 0, 'max': 100},
+        'add_pen': {'type': 'FLOAT', 'size': 1, 'min': 0, 'max': 2.},
         # DTW multiplicative penalty
         'mul_pen': {'type': 'FLOAT', 'size': 1, 'min': 0, 'max': 2.},
         # DTW end point tolerance
