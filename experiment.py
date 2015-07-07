@@ -11,6 +11,7 @@ import scipy.stats
 import librosa
 import djitw
 import create_data
+import argparse
 
 # Path to corrupted dataset, created by create_data.py
 CORRUPTED_PATH = 'data/corrupted_easy/*.npz'
@@ -115,6 +116,13 @@ def main(job_id, params):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description='Run a MIDI alignment parameter search experiment.',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('-s', '--seed', action='store', type=int, default=0,
+                        help='Random seed for spearmint.')
+    seed = parser.parse_args().seed
+
     space = {
         # Use chroma or CQT for feature representation
         'feature': {'type': 'ENUM', 'size': 1, 'options': ['chroma', 'gram']},
@@ -141,8 +149,9 @@ if __name__ == '__main__':
     # Set up spearmint options dict
     options = {'language': 'PYTHON',
                'main-file': os.path.basename(__file__),
-               'experiment-name': 'alignment_search',
+               'experiment-name': 'alignment_search_seed_{}'.format(seed),
                'likelihood': 'NOISELESS',
-               'variables': space}
+               'variables': space,
+               'grid-seed': seed}
 
     spearmint.main.main(options, os.getcwd())
