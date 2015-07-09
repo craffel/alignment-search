@@ -59,8 +59,7 @@ def objective(params):
         if params['beat_sync']:
             gram = librosa.feature.sync(gram, beats, pad=False)
         # Compute log magnitude
-        if params['log']:
-            gram = librosa.logamplitude(gram, ref_power=gram.max())
+        gram = librosa.logamplitude(gram, ref_power=gram.max())
         # Normalize the feature vectors
         gram = librosa.util.normalize(gram, norm=params['norm'])
         # Standardize the feature vectors
@@ -89,8 +88,8 @@ def objective(params):
             mask = None
         # Get DTW path and score
         add_pen = params['add_pen']*np.median(distance_matrix)
-        p, q, score = djitw.dtw(distance_matrix, params['gully'], add_pen,
-                                params['mul_pen'], mask)
+        p, q, score = djitw.dtw(
+            distance_matrix, params['gully'], add_pen, mask=mask)
         if params['beat_sync']:
             # If we are beat syncing, we have to compare against beat times
             # so we index adjusted_times by the beat indices
@@ -132,15 +131,11 @@ if __name__ == '__main__':
         'norm': {'type': 'ENUM', 'size': 1, 'options': [None, np.inf, 1, 2]},
         # Whether or not to z-score (standardize) the feature dimensions
         'standardize': {'type': 'ENUM', 'size': 1, 'options': [True, False]},
-        # Compute the log magnitude of the features
-        'log': {'type': 'ENUM', 'size': 1, 'options': [True, False]},
         # Which distance metric to use for distance matrix
         'metric': {'type': 'ENUM', 'size': 1,
                    'options': ['euclidean', 'sqeuclidean', 'cosine']},
         # DTW additive penalty
         'add_pen': {'type': 'FLOAT', 'size': 1, 'min': 0, 'max': 2.},
-        # DTW multiplicative penalty
-        'mul_pen': {'type': 'FLOAT', 'size': 1, 'min': 0, 'max': 2.},
         # DTW end point tolerance
         'gully': {'type': 'FLOAT', 'size': 1, 'min': 0, 'max': 1.},
         # Whether to constrain the path to within the tolerance
