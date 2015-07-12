@@ -16,6 +16,7 @@ import joblib
 FS = 22050
 NOTE_START = 36
 N_NOTES = 48
+HOP_LENGTH = 1024
 
 
 def extract_cqt(audio_data):
@@ -36,9 +37,10 @@ def extract_cqt(audio_data):
     '''
     # Compute CQT
     cqt = librosa.cqt(audio_data, sr=FS, fmin=librosa.midi_to_hz(NOTE_START),
-                      n_bins=N_NOTES, tuning=0.)
+                      n_bins=N_NOTES, hop_length=HOP_LENGTH, tuning=0.)
     # Compute the time of each frame
-    times = librosa.frames_to_time(np.arange(cqt.shape[1]), sr=FS)
+    times = librosa.frames_to_time(
+        np.arange(cqt.shape[1]), sr=FS, hop_length=HOP_LENGTH)
     # Use float32 for the cqt to save space/memory
     cqt = cqt.astype(np.float32)
     return cqt, times
@@ -69,8 +71,10 @@ def extract_features(midi_object):
     while tempo < 160:
         tempo *= 2
     # Estimate the beats, forcing the tempo to be near the MIDI tempo
-    beat_frames = librosa.beat.beat_track(midi_audio, bpm=tempo)[1]
-    beat_times = librosa.frames_to_time(beat_frames, sr=FS)
+    beat_frames = librosa.beat.beat_track(
+        midi_audio, bpm=tempo, hop_length=HOP_LENGTH)[1]
+    beat_times = librosa.frames_to_time(
+        beat_frames, sr=FS, hop_length=HOP_LENGTH)
 
     return {'times': times, 'gram': gram, 'beat_frames': beat_frames,
             'beat_times': beat_times}
@@ -105,7 +109,7 @@ def process_one_file(midi_filename, output_path):
         # Get features for corrupted MIDI
         corrupted_features = extract_features(midi_object)
         corrupted_features = dict(('corrupted_{}'.format(k), v)
-                                for (k, v) in corrupted_features.iteritems())
+                                  for (k, v) in corrupted_features.iteritems())
         # Combine features, diagnostics into one fat dict
         data = dict(i for i in itertools.chain(
             orig_features.iteritems(), [('adjusted_times', adjusted_times)],
