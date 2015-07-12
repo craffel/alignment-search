@@ -5,8 +5,6 @@ import numpy as np
 import pretty_midi
 import librosa
 import corrupt_midi
-import tempfile
-import subprocess
 import os
 import itertools
 import sys
@@ -46,42 +44,6 @@ def extract_cqt(audio_data):
     return cqt, times
 
 
-def fast_fluidsynth(midi_object):
-    '''
-    Faster fluidsynth synthesis using the command-line program instead of
-    pyfluidsynth.
-
-    Parameters
-    ----------
-    midi_object : pretty_midi.PrettyMIDI
-        PrettyMIDI object
-
-    Returns
-    -------
-    midi_audio : np.ndarray
-        Synthesized audio
-    '''
-    # Write out temp mid file
-    temp_mid = tempfile.NamedTemporaryFile()
-    midi_object.write(temp_mid.name)
-    # Get path to temporary .wav file
-    temp_wav = tempfile.NamedTemporaryFile()
-    # Get path to default pretty_midi SF2
-    sf2_path = os.path.join(os.path.dirname(pretty_midi.__file__),
-                            pretty_midi.DEFAULT_SF2)
-    # Make system call to fluidsynth
-    with open(os.devnull, 'w') as devnull:
-        subprocess.check_output(
-            ['fluidsynth', '--fast-render={}'.format(temp_wav.name),
-             '-r', str(FS), sf2_path, temp_mid.name], stderr=devnull)
-    # Load from temp wav file
-    audio, _ = librosa.load(temp_wav.name, sr=FS)
-    # Close/delete temp files
-    temp_mid.close()
-    temp_wav.close()
-    return audio
-
-
 def extract_features(midi_object):
     '''
     Main feature extraction routine for a MIDI file
@@ -97,7 +59,7 @@ def extract_features(midi_object):
         Dictionary of features
     '''
     # Synthesize the midi object
-    midi_audio = fast_fluidsynth(midi_object)
+    midi_audio = midi_object.fluidsynth(fs=FS)
     # Compute constant-Q transform
     gram, times = extract_cqt(midi_audio)
     # Estimate the tempo from the MIDI data
