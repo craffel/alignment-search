@@ -103,7 +103,7 @@ def objective(params):
             corrupted_times[q] - adjusted_times[p], -.5, .5)
         # Compute the mean error for this MIDI
         mean_errors[n] = np.mean(np.abs(error))
-    return np.mean(mean_errors)
+    return mean_errors
 
 
 def main(job_id, params):
@@ -111,7 +111,9 @@ def main(job_id, params):
     # 1-dimensional arrays.  So, get the first entry to flatten.
     for key, value in params.items():
         params[key] = value[0]
-    return objective(params)
+    mean_errors = objective(params)
+    # TODO: Is there a way to write out mean_errors?
+    return np.mean(mean_errors)
 
 
 if __name__ == '__main__':
