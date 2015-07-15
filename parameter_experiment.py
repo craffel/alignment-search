@@ -32,8 +32,8 @@ def objective(params):
 
     Returns
     -------
-    result : dict
-        Dictionary reporting the results of the alignment
+    results : list of dict
+        List of dicts reporting the results for each alignment
     '''
     def post_process_features(gram, beats):
         '''
@@ -68,8 +68,8 @@ def objective(params):
             gram = scipy.stats.mstats.zscore(gram, axis=1)
         # Transpose it to (n_samples, n_features) and return it
         return gram.T
-    # Pre-allocate array for storing the mean error for each corrupted MIDI
-    mean_errors = np.zeros(len(data))
+    # List for storing the results of each alignment
+    results = []
     for n, d in enumerate(data):
         # Post proces the chosen feature matrices
         orig_gram = post_process_features(
@@ -90,7 +90,7 @@ def objective(params):
         # Get DTW path and score
         add_pen = params['add_pen']*np.median(distance_matrix)
         p, q, score = djitw.dtw(
-            distance_matrix, params['gully'], add_pen, mask=mask)
+            distance_matrix, params['gully'], add_pen, mask=mask, inplace=0)
         if params['beat_sync']:
             # If we are beat syncing, we have to compare against beat times
             # so we index adjusted_times by the beat indices
@@ -103,8 +103,14 @@ def objective(params):
         error = np.clip(
             corrupted_times[q] - adjusted_times[p], -.5, .5)
         # Compute the mean error for this MIDI
-        mean_errors[n] = np.mean(np.abs(error))
-    return mean_errors
+        results.append({'mean_error': np.mean(np.abs(error)),
+                        'raw_score': score,
+                        'raw_score_no_penalty': distance_matrix[p, q].sum(),
+                        'path_length': p.shape[0],
+                        'distance_matrix_mean': np.mean(
+                            distance_matrix[p.min():p.max(), q.min():q.max()]),
+                        'feature_file': d['feature_file']})
+    return results
 
 
 def main(job_id, params):
@@ -112,8 +118,9 @@ def main(job_id, params):
     # 1-dimensional arrays.  So, get the first entry to flatten.
     for key, value in params.items():
         params[key] = value[0]
-    mean_errors = objective(params)
-    # TODO: Is there a way to write out mean_errors?
+    # Compute results for this parameter setting and retrieve mean errors
+    mean_errors = [r['mean_error'] for r in objective(params)]
+    # TODO: Is there a way to write out results?
     return np.mean(mean_errors)
 
 
