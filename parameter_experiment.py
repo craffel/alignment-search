@@ -16,7 +16,8 @@ import argparse
 # Path to corrupted dataset, created by create_data.py
 CORRUPTED_PATH = 'data/corrupted_easy/*.npz'
 # Load in all npz's, casted to dict to force full loading
-data = [dict(np.load(d)) for d in sorted(glob.glob(CORRUPTED_PATH))]
+data = [dict(feature_file=os.path.abspath(d), **np.load(d))
+        for d in sorted(glob.glob(CORRUPTED_PATH))]
 
 
 def objective(params):
