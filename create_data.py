@@ -80,16 +80,18 @@ def extract_features(midi_object):
             'beat_times': beat_times}
 
 
-def process_one_file(midi_filename, output_path):
+def process_one_file(midi_filename, output_path, corruption_params):
     '''
     Create features and diagnostics dict for original and corrupted MIDI file
 
     Parameters
     ----------
     midi_filename : str
-       Path to a MIDI file to corrupt.
+        Path to a MIDI file to corrupt.
     output_path : str
         Base path to write out .npz/.mid
+    corruption_params : dict
+        Parameters to pass to corrupt_midi.corrupt_midi
 
     Returns
     -------
@@ -105,7 +107,7 @@ def process_one_file(midi_filename, output_path):
             ('orig_{}'.format(k), v) for (k, v) in orig_features.iteritems())
         # Corrupt MIDI object (in place)
         adjusted_times, diagnostics = corrupt_midi.corrupt_midi(
-            midi_object, orig_features['orig_times'])
+            midi_object, orig_features['orig_times'], **corruption_params)
         # Get features for corrupted MIDI
         corrupted_features = extract_features(midi_object)
         corrupted_features = dict(('corrupted_{}'.format(k), v)
@@ -132,14 +134,34 @@ if __name__ == '__main__':
     # Parse command-line arguments
     parser = argparse.ArgumentParser(
         description='Create a dataset of corrupted MIDI information.')
+    parser.add_argument('mode', action='store',
+                        help='Create "easy" or "hard" corruptions?')
     parser.add_argument('midi_glob', action='store',
                         help='Glob to MIDI files (e.g. data/mid/*/*.mid)')
     parser.add_argument('output_path', action='store',
                         help='Where to output .npz files')
     parameters = vars(parser.parse_args(sys.argv[1:]))
+    # Set shared values of corruption_params
+    corruption_params = {
+        'start_crop_prob': .5,
+        'end_crop_prob': .5,
+        'middle_crop_prob': .1,
+        'change_inst_prob': 1.}
+    if parameters['mode'] == 'hard':
+        corruption_params['warp_std'] = 20.
+        corruption_params['remove_inst_prob'] = .66,
+        corruption_params['velocity_std'] = 1.
+    elif parameters['mode'] == 'easy':
+        corruption_params['warp_std'] = 5.
+        corruption_params['remove_inst_prob'] = .1,
+        corruption_params['velocity_std'] = .2
+    else:
+        raise ValueError('mode must be "easy" or "hard", got {}'.format(
+            parameters['mode']))
     # Create the output directory if it doesn't exist
     if not os.path.exists(parameters['output_path']):
         os.makedirs(parameters['output_path'])
     joblib.Parallel(n_jobs=10, verbose=51)(
-        joblib.delayed(process_one_file)(midi_file, parameters['output_path'])
+        joblib.delayed(process_one_file)(
+            midi_file, parameters['output_path'], corruption_params)
         for midi_file in glob.glob(parameters['midi_glob']))

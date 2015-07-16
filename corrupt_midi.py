@@ -143,10 +143,10 @@ def corrupt_velocity(midi_object, std):
             note.velocity = int(np.clip(new_velocity, 0, 127))
 
 
-def corrupt_midi(midi_object, original_times, warp_std=5.,
-                 start_crop_prob=.5, end_crop_prob=.5,
-                 middle_crop_prob=.1, remove_inst_prob=.1,
-                 change_inst_prob=1., velocity_std=.2):
+def corrupt_midi(midi_object, original_times, warp_std,
+                 start_crop_prob, end_crop_prob,
+                 middle_crop_prob, remove_inst_prob,
+                 change_inst_prob, velocity_std):
     '''
     Apply a series of corruptions to a MIDI object.
 
