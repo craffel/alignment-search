@@ -15,12 +15,27 @@ import argparse
 
 # Path to corrupted dataset, created by create_data.py
 CORRUPTED_PATH = 'data/corrupted_easy/*.npz'
-# Load in all npz's, casted to dict to force full loading
-data = [dict(feature_file=os.path.abspath(d), **np.load(d))
-        for d in sorted(glob.glob(CORRUPTED_PATH))]
 
 
-def objective(params):
+def load_dataset(file_glob):
+    """Load in a collection of feature files created by create_data.py.
+
+    Parameters
+    ----------
+    file_glob : str
+        Glob string for .npz files to load.
+
+    Returns
+    -------
+    data : list of dict
+        Loaded dataset, sorted by filename.
+    """
+    # Load in all npz's, casted to dict to force full loading
+    return [dict(feature_file=os.path.abspath(d), **np.load(d))
+            for d in sorted(glob.glob(file_glob))]
+
+
+def objective(params, data):
     '''
     Perform alignment of all corrupted MIDIs in the database given the supplied
     parameters and compute the mean alignment error across all examples
@@ -29,6 +44,9 @@ def objective(params):
     ----------
     params : dict
         Dictionary of alignment parameters.
+
+    data : list of dict
+        Collection of things to align, loaded via load_dataset.
 
     Returns
     -------
@@ -118,8 +136,10 @@ def main(job_id, params):
     # 1-dimensional arrays.  So, get the first entry to flatten.
     for key, value in params.items():
         params[key] = value[0]
+    # Load in the dataset
+    data = load_dataset(CORRUPTED_PATH)
     # Compute results for this parameter setting and retrieve mean errors
-    mean_errors = [r['mean_error'] for r in objective(params)]
+    mean_errors = [r['mean_error'] for r in objective(params, data)]
     # TODO: Is there a way to write out results?
     return np.mean(mean_errors)
 
