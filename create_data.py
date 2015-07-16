@@ -12,6 +12,7 @@ import argparse
 import glob
 import traceback
 import joblib
+import warnings
 
 FS = 22050
 NOTE_START = 36
@@ -65,7 +66,13 @@ def extract_features(midi_object):
     # Compute constant-Q transform
     gram, times = extract_cqt(midi_audio)
     # Estimate the tempo from the MIDI data
-    tempo = midi_object.estimate_tempo()
+    try:
+        tempo = midi_object.estimate_tempo()
+    except IndexError:
+        # When there's no tempo to estimate, estimate_tempo currently fails on
+        # an IndexError (see https://github.com/craffel/pretty-midi/issues/36)
+        warnings.warn('No tempo was found, 120 bpm will be used.')
+        tempo = 120
     # Usually, estimate_tempo gives tempos around 200 bpm, which is usually
     # double time, which we want.  Sometimes, it's not, so we double it.
     while tempo < 160:
