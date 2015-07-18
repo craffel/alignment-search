@@ -156,7 +156,7 @@ if __name__ == '__main__':
         'change_inst_prob': 1.}
     if parameters['mode'] == 'hard':
         corruption_params['warp_std'] = 20.
-        corruption_params['remove_inst_prob'] = .66,
+        corruption_params['remove_inst_prob'] = .5,
         corruption_params['velocity_std'] = 1.
     elif parameters['mode'] == 'easy':
         corruption_params['warp_std'] = 5.
