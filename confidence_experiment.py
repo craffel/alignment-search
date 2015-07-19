@@ -53,7 +53,7 @@ def check_one_seed(best_errors, seed, database, collection):
         # Create results dict, storing the r_csore and errors, plus stuff below
         result = dict(r_score=r_score,
                       easy_errors=easy_errors.tolist(),
-                      hard_mean_error=hard_errors.tolist(),
+                      hard_errors=hard_errors.tolist(),
                       **params)
         # Try all combinations of score normalization
         for include_pen in [0, 1]:
@@ -74,18 +74,18 @@ def check_one_seed(best_errors, seed, database, collection):
                     if length_normalize:
                         scores /= np.array(
                             [r['path_length'] for r in hard_results])
-                        name += '_length_normalize'
+                        name += '_len_norm'
                     # Optionally normalize by distance matrix mean
                     if mean_normalize:
                         scores /= np.array(
                             [r['distance_matrix_mean'] for r in hard_results])
-                        name += '_mean_normalize'
+                        name += '_mean_norm'
                     # Compute rank correlation coefficient
                     rank_corr = scipy.stats.spearmanr(hard_errors, scores)
                     # Store the rank correlation coefficient
-                    result[name + 'rank_corr'] = rank_corr
+                    result[name + '_rank_corr'] = rank_corr
                     # Store the scores
-                    result[name + 'scores'] = scores.tolist()
+                    result[name + '_scores'] = scores.tolist()
         # Write resultt to database
         client[database][collection].insert(result)
     # Close the mongodb connection
