@@ -18,12 +18,34 @@ DB_PATH = 'results/results.json'
 N_TRIALS = 10000
 
 
-def experiment_wrapper(param_sampler, data, db, lock):
+def result_writer(table, queue):
+    '''
+    Waits for results to appear on a queue, and when they do, writes them out
+
+    Parameters
+    ----------
+    table : tinydb.database.Table
+        TinyDB table instance to save results to
+
+    queue : multiprocessing.Queue
+        Queue where results will appear
+    '''
+    while True:
+        # Check for an item on the queue
+        item = queue.get()
+        # Store in the tinydb table
+        table.insert(item)
+
+
+def experiment_wrapper(seed, param_sampler, data, queue):
     '''
     Run alignment over the dataset and save the result.
 
     Parameters
     ----------
+    seed : int
+        Seed for numpy RNG.
+
     param_sampler : dict of functions
         Dictionary which maps parameter names to functions to sample values for
         those parameters.
@@ -31,23 +53,19 @@ def experiment_wrapper(param_sampler, data, db, lock):
     data : list of dict of np.ndarray
         Collection aligned/unaligned MIDI pairs
 
-    db : tinydb.database.Table
-        TinyDB table instance to save results to
-
-    lock : multiprocessing.Lock
-        Lock instance which prevents simultaneous writing to tinydb
+    queue : multiprocessing.Queue
+        Queue instance where results will be put
     '''
+    # Use a different seed for each call to ensure that processes are
+    # sampling different values from param_sampler
+    np.random.seed(seed)
     # Call the sample function for each param name in the param sampler dict
     # to create a dict which maps param names to sampled values
     params = dict((name, sample()) for (name, sample) in param_sampler.items())
     # Get the results dictionary for this parameter setting
     results = align_dataset.align_dataset(params, data)
-    # Acquire lock for database
-    lock.acquire()
     # Store this result
-    db.insert({'params': params, 'results': results})
-    # Acquire lock for database
-    lock.release()
+    queue.put({'params': params, 'results': results})
 
 
 if __name__ == '__main__':
@@ -80,9 +98,14 @@ if __name__ == '__main__':
     db = tinydb.TinyDB(DB_PATH)
     # Choose the table
     table = db.table('parameter_experiment')
-    # Database writing lock
-    lock = multiprocessing.Lock()
 
-    joblib.Parallel(n_jobs=10, verbose=51, backend='threading')(
-        joblib.delayed(experiment_wrapper)(
-            param_sampler, data, table, lock) for _ in range(N_TRIALS))
+    # Create multiprocessing Queue instance
+    manager = multiprocessing.Manager()
+    queue = manager.Queue()
+    # Start a process which waits for results and writes them
+    writer_process = multiprocessing.Process(
+        target=result_writer, args=(table, queue))
+    writer_process.start()
+
+    joblib.Parallel(n_jobs=10, verbose=51)(joblib.delayed(experiment_wrapper)(
+        seed, param_sampler, data, queue) for seed in range(N_TRIALS))
