@@ -2,28 +2,22 @@
 Run the alignment parameter search experiment.
 '''
 
-import spearmint.main
-import os
+import apsis.models.parameter_definition
+import apsis.assistants.experiment_assistant
+import apsis.utilities.randomization
 import numpy as np
 import argparse
 import align_dataset
+import os
 
 # Path to corrupted dataset, created by create_data.py
 CORRUPTED_PATH = 'data/corrupted_easy/*.npz'
-
-
-def main(job_id, params):
-    # Spearmint requires (I think) all params to be passed as at least
-    # 1-dimensional arrays.  So, get the first entry to flatten.
-    for key, value in params.items():
-        params[key] = value[0]
-    # Load in the dataset
-    data = align_dataset.load_dataset(CORRUPTED_PATH)
-    # Compute results for this parameter setting and retrieve mean errors
-    mean_errors = [r['mean_error']
-                   for r in align_dataset.align_dataset(params, data)]
-    # TODO: Is there a way to write out results?
-    return np.mean(mean_errors)
+# How many total trials of hyperparameter optimization should we run?
+TRIALS = 100
+# How many randomly selected hyperparameter settings shuld we start with?
+INITIAL_RANDOM = 3
+# Where should experiment results be output?
+RESULTS_PATH = 'results'
 
 
 if __name__ == '__main__':
@@ -34,31 +28,50 @@ if __name__ == '__main__':
                         help='Random seed for spearmint.')
     seed = parser.parse_args().seed
 
+    ListParam = apsis.models.parameter_definition.EquidistantPositionParamDef
+    FloatParam = apsis.models.parameter_definition.MinMaxNumericParamDef
+
     space = {
         # Use chroma or CQT for feature representation
-        'feature': {'type': 'ENUM', 'size': 1, 'options': ['chroma', 'gram']},
+        'feature': ListParam(['chroma', 'gram']),
         # Beat sync, or don't
-        'beat_sync': {'type': 'ENUM', 'size': 1, 'options': [True, False]},
+        # 'beat_sync': ListParam([True, False]),
         # Don't normalize, max-norm, L1-norm, or L2 norm
-        'norm': {'type': 'ENUM', 'size': 1, 'options': [None, np.inf, 1, 2]},
+        'norm': ListParam([None, np.inf, 1, 2]),
         # Whether or not to z-score (standardize) the feature dimensions
-        'standardize': {'type': 'ENUM', 'size': 1, 'options': [True, False]},
+        'standardize': ListParam([True, False]),
         # Which distance metric to use for distance matrix
-        'metric': {'type': 'ENUM', 'size': 1,
-                   'options': ['euclidean', 'sqeuclidean', 'cosine']},
+        'metric': ListParam(['euclidean', 'sqeuclidean', 'cosine']),
         # DTW additive penalty
-        'add_pen': {'type': 'FLOAT', 'size': 1, 'min': 0, 'max': 2.},
+        'add_pen': FloatParam(0, 4),
         # DTW end point tolerance
-        'gully': {'type': 'FLOAT', 'size': 1, 'min': 0, 'max': 1.},
+        'gully': FloatParam(0, 1),
         # Whether to constrain the path to within the tolerance
-        'band_mask': {'type': 'ENUM', 'size': 1, 'options': [True, False]}}
+        'band_mask': ListParam([True, False])}
 
-    # Set up spearmint options dict
-    options = {'language': 'PYTHON',
-               'main-file': os.path.basename(__file__),
-               'experiment-name': 'alignment_search_seed_{}'.format(seed),
-               'likelihood': 'NOISELESS',
-               'variables': space,
-               'grid-seed': seed}
+    # Get random state from apsis
+    random_state = apsis.utilities.randomization.check_random_state(seed)
 
-    spearmint.main.main(options, os.getcwd())
+    if not os.path.exists(RESULTS_PATH):
+        os.makedirs(RESULTS_PATH)
+
+    expmnt = apsis.assistants.experiment_assistant.BasicExperimentAssistant(
+        'parameter_experiment_seed_{}'.format(seed),
+        optimizer="BayOpt", param_defs=space,
+        optimizer_arguments={'random_state': random_state,
+                             'initial_random_runs': INITIAL_RANDOM},
+        write_directory_base=RESULTS_PATH)
+
+    data = align_dataset.load_dataset(CORRUPTED_PATH)
+
+    for _ in range(TRIALS):
+        candidate = expmnt.get_next_candidate()
+        params = dict(candidate.params)
+        params['beat_sync'] = True
+        result = align_dataset.align_dataset(params, data)
+        mean_errors = [r['mean_error'] for r in result]
+        candidate.result = np.mean(mean_errors)
+        print candidate.params
+        print candidate.result
+        print
+        expmnt.update(candidate)
