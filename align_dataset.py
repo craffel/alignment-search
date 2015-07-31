@@ -91,8 +91,9 @@ def align_dataset(params, data):
         # Compute a distance matrix according to the supplied metric
         distance_matrix = scipy.spatial.distance.cdist(
             orig_gram, corrupted_gram, params['metric'])
-        # Set any NaN values to the largest distance
-        distance_matrix[np.isnan(distance_matrix)] = np.nanmax(distance_matrix)
+        # Set any Nan/inf values to the largest distance
+        distance_matrix[np.logical_not(np.isfinite(distance_matrix))] = np.max(
+            distance_matrix[np.isfinite(distance_matrix)])
         # Compute a band mask or set to None for no mask
         if params['band_mask']:
             mask = np.zeros(distance_matrix.shape, dtype=np.bool)
@@ -115,11 +116,16 @@ def align_dataset(params, data):
         error = np.clip(
             corrupted_times[q] - adjusted_times[p], -.5, .5)
         # Compute the mean error for this MIDI
-        results.append({'mean_error': np.mean(np.abs(error)),
-                        'raw_score': score,
-                        'raw_score_no_penalty': distance_matrix[p, q].sum(),
-                        'path_length': p.shape[0],
-                        'distance_matrix_mean': np.mean(
-                            distance_matrix[p.min():p.max(), q.min():q.max()]),
-                        'feature_file': d['feature_file']})
+        mean_error = np.mean(np.abs(error))
+        # If the mean error is NaN or inf for some reason, set it to max (.5)
+        if not np.isfinite(mean_error):
+            mean_error = .5
+        results.append({
+            'mean_error': mean_error,
+            'raw_score': score,
+            'raw_score_no_penalty': distance_matrix[p, q].sum(),
+            'path_length': p.shape[0],
+            'distance_matrix_mean': np.mean(
+                distance_matrix[p.min():p.max(), q.min():q.max()]),
+            'feature_file': d['feature_file']})
     return results
