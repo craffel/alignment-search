@@ -1,15 +1,20 @@
 """ Utility functions to retrieve results from tinydb """
 
 import numpy as np
+try:
+    import ujson as json
+except ImportError:
+    import json
+import glob
 
 
-def get_experiment_results(table):
+def get_experiment_results(results_glob):
     """Get a list of all results of an experiment from the tinydb table.
 
     Parameters
     ----------
-    table : tinydb.database.Table
-        TinyDB table instance to save results to
+    results_glob : str
+        Glob to results .json files
 
     Returns
     -------
@@ -20,21 +25,23 @@ def get_experiment_results(table):
         List of float, where each entry is the objective value for the
         corresponding parameter settings in params
     """
-    params = [result['params'] for result in table.all()]
-    objectives = [np.mean([alignment['mean_error']
-                           for alignment in result['results']])
-                  for result in table.all()]
+    results = []
+    for result_file in glob.glob(results_glob):
+        with open(result_file) as f:
+            results.append(json.load(f))
+    params = [result['params'] for result in results]
+    objectives = [np.mean(r['results']['mean_errors']) for r in results]
     return params, objectives
 
 
-def get_best_result(experiment_name):
+def get_best_result(results_glob):
     """Get the parameters and objective corresponding to the best result for an
     experiment.
 
     Parameters
     ----------
-    experiment_name : str
-        Name of the experiment (database collection)
+    results_glob : str
+        Glob to results .json files
 
     Returns
     -------
@@ -45,6 +52,6 @@ def get_best_result(experiment_name):
         in params
     """
     # This function is just a wrapper around using argmin
-    params, objectives = get_experiment_results(experiment_name)
+    params, objectives = get_experiment_results(results_glob)
     best_result = np.argmin(objectives)
     return params[best_result], objectives[best_result]

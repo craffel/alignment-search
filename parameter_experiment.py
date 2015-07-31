@@ -6,46 +6,25 @@ import os
 import numpy as np
 import align_dataset
 import functools
-import tinydb
-import joblib
-import multiprocessing
+try:
+    import ujson as json
+except ImportError:
+    import json
 
 # Path to corrupted dataset, created by create_data.py
 CORRUPTED_PATH = 'data/corrupted_easy/*.npz'
-# Path to the tinydb file
-DB_PATH = 'results/results.json'
+# Path where results should be written
+OUTPUT_PATH = 'results/parameter_experiment'
 # Number of parameter settings to try
-N_TRIALS = 10000
+N_TRIALS = 1000
 
 
-def result_writer(table, queue):
-    '''
-    Waits for results to appear on a queue, and when they do, writes them out
-
-    Parameters
-    ----------
-    table : tinydb.database.Table
-        TinyDB table instance to save results to
-
-    queue : multiprocessing.Queue
-        Queue where results will appear
-    '''
-    while True:
-        # Check for an item on the queue
-        item = queue.get()
-        # Store in the tinydb table
-        table.insert(item)
-
-
-def experiment_wrapper(seed, param_sampler, data, queue):
+def experiment_wrapper(param_sampler, data, output_path):
     '''
     Run alignment over the dataset and save the result.
 
     Parameters
     ----------
-    seed : int
-        Seed for numpy RNG.
-
     param_sampler : dict of functions
         Dictionary which maps parameter names to functions to sample values for
         those parameters.
@@ -53,19 +32,31 @@ def experiment_wrapper(seed, param_sampler, data, queue):
     data : list of dict of np.ndarray
         Collection aligned/unaligned MIDI pairs
 
-    queue : multiprocessing.Queue
-        Queue instance where results will be put
+    output_path : str
+        Where to write the results .json file
     '''
-    # Use a different seed for each call to ensure that processes are
-    # sampling different values from param_sampler
-    np.random.seed(seed)
     # Call the sample function for each param name in the param sampler dict
     # to create a dict which maps param names to sampled values
     params = dict((name, sample()) for (name, sample) in param_sampler.items())
     # Get the results dictionary for this parameter setting
     results = align_dataset.align_dataset(params, data)
+    # ujson can't handle infs, so we need to replace them manually:
+    if params['norm'] == np.inf:
+        params['norm'] = str(np.inf)
+    # Convert params dict to a string of the form
+    # param1_name_param1_value_param2_name_param2_value...
+    param_string = "_".join(
+        '{}_{}'.format(name, value) if type(value) != float else
+        '{}_{:.3f}'.format(name, value) for name, value in params.items())
+    # Construct a path where the .json results file will be written
+    output_filename = os.path.join(output_path, "{}.json".format(param_string))
     # Store this result
-    queue.put({'params': params, 'results': results})
+    try:
+        with open(output_filename, 'wb') as f:
+            json.dump({'params': params, 'results': results}, f)
+    # Ignore "OverflowError"s raised by ujson; they correspond to inf/NaN
+    except OverflowError:
+        pass
 
 
 if __name__ == '__main__':
@@ -92,20 +83,8 @@ if __name__ == '__main__':
     # Load in the easy corrupted dataset
     data = align_dataset.load_dataset(CORRUPTED_PATH)
     # Check that the results database directory exists
-    if not os.path.exists(os.path.split(DB_PATH)[0]):
-        os.makedirs(os.path.split(DB_PATH)[0])
-    # Load the database
-    db = tinydb.TinyDB(DB_PATH)
-    # Choose the table
-    table = db.table('parameter_experiment')
+    if not os.path.exists(OUTPUT_PATH):
+        os.makedirs(OUTPUT_PATH)
 
-    # Create multiprocessing Queue instance
-    manager = multiprocessing.Manager()
-    queue = manager.Queue()
-    # Start a process which waits for results and writes them
-    writer_process = multiprocessing.Process(
-        target=result_writer, args=(table, queue))
-    writer_process.start()
-
-    joblib.Parallel(n_jobs=10, verbose=51)(joblib.delayed(experiment_wrapper)(
-        seed, param_sampler, data, queue) for seed in range(N_TRIALS))
+    for _ in range(N_TRIALS):
+        experiment_wrapper(param_sampler, data, OUTPUT_PATH)
