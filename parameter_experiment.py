@@ -28,7 +28,7 @@ if __name__ == '__main__':
                         help='Random seed for spearmint.')
     seed = parser.parse_args().seed
 
-    ListParam = apsis.models.parameter_definition.EquidistantPositionParamDef
+    ListParam = apsis.models.parameter_definition.NominalParamDef
     FloatParam = apsis.models.parameter_definition.MinMaxNumericParamDef
 
     space = {
