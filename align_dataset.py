@@ -9,6 +9,7 @@ import os
 import numpy as np
 import create_data
 import djitw
+import collections
 
 
 def load_dataset(file_glob):
@@ -81,7 +82,7 @@ def align_dataset(params, data):
         # Transpose it to (n_samples, n_features) and return it
         return gram.T
     # List for storing the results of each alignment
-    results = []
+    results = collections.defaultdict(list)
     for n, d in enumerate(data):
         # Post proces the chosen feature matrices
         orig_gram = post_process_features(
@@ -120,12 +121,11 @@ def align_dataset(params, data):
         # If the mean error is NaN or inf for some reason, set it to max (.5)
         if not np.isfinite(mean_error):
             mean_error = .5
-        results.append({
-            'mean_error': mean_error,
-            'raw_score': score,
-            'raw_score_no_penalty': distance_matrix[p, q].sum(),
-            'path_length': p.shape[0],
-            'distance_matrix_mean': np.mean(
-                distance_matrix[p.min():p.max() + 1, q.min():q.max() + 1]),
-            'feature_file': d['feature_file']})
+        results['mean_errors'].append(mean_error)
+        results['raw_scores'].append(score)
+        results['raw_scores_no_penalty'].append(distance_matrix[p, q].sum())
+        results['path_lengths'].append(p.shape[0])
+        results['distance_matrix_means'].append(np.mean(
+            distance_matrix[p.min():p.max() + 1, q.min():q.max() + 1]))
+        results['feature_files'].append(os.path.basename(d['feature_file']))
     return results
