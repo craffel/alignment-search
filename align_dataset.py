@@ -126,6 +126,6 @@ def align_dataset(params, data):
             'raw_score_no_penalty': distance_matrix[p, q].sum(),
             'path_length': p.shape[0],
             'distance_matrix_mean': np.mean(
-                distance_matrix[p.min():p.max(), q.min():q.max()]),
+                distance_matrix[p.min():p.max() + 1, q.min():q.max() + 1]),
             'feature_file': d['feature_file']})
     return results
