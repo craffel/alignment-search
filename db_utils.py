@@ -10,7 +10,7 @@ import os
 
 
 def get_experiment_results(results_glob):
-    """Get a list of all results of an experiment from the tinydb table.
+    """Get a list of all results of an experiment from .json files table.
 
     Parameters
     ----------
