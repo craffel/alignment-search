@@ -6,15 +6,12 @@ import os
 import numpy as np
 import align_dataset
 import functools
-try:
-    import ujson as json
-except ImportError:
-    import json
+import db_utils
 
 # Path to corrupted dataset, created by create_data.py
 CORRUPTED_PATH = 'data/corrupted_easy/*.npz'
 # Path where results should be written
-OUTPUT_PATH = 'results/parameter_experiment'
+OUTPUT_PATH = 'results/parameter_experiment_random'
 # Number of parameter settings to try
 N_TRIALS = 1000
 
@@ -40,23 +37,7 @@ def experiment_wrapper(param_sampler, data, output_path):
     params = dict((name, sample()) for (name, sample) in param_sampler.items())
     # Get the results dictionary for this parameter setting
     results = align_dataset.align_dataset(params, data)
-    # ujson can't handle infs, so we need to replace them manually:
-    if params['norm'] == np.inf:
-        params['norm'] = str(np.inf)
-    # Convert params dict to a string of the form
-    # param1_name_param1_value_param2_name_param2_value...
-    param_string = "_".join(
-        '{}_{}'.format(name, value) if type(value) != float else
-        '{}_{:.3f}'.format(name, value) for name, value in params.items())
-    # Construct a path where the .json results file will be written
-    output_filename = os.path.join(output_path, "{}.json".format(param_string))
-    # Store this result
-    try:
-        with open(output_filename, 'wb') as f:
-            json.dump({'params': params, 'results': results}, f)
-    # Ignore "OverflowError"s raised by ujson; they correspond to inf/NaN
-    except OverflowError:
-        pass
+    db_utils.dump_result(params, results, output_path)
 
 
 if __name__ == '__main__':
