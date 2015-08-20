@@ -84,6 +84,11 @@ def align_dataset(params, data):
     # List for storing the results of each alignment
     results = collections.defaultdict(list)
     for n, d in enumerate(data):
+        # If we are beat syncing and either of the beat frames are empty, we
+        # can't really align, so just skip this file.
+        if params['beat_sync'] and (d['orig_beat_frames'].size == 0 or
+                                    d['corrupted_beat_frames'].size == 0):
+            continue
         # Post proces the chosen feature matrices
         orig_gram = post_process_features(
             d['orig_gram'], d['orig_beat_frames'])
@@ -92,6 +97,9 @@ def align_dataset(params, data):
         # Compute a distance matrix according to the supplied metric
         distance_matrix = scipy.spatial.distance.cdist(
             orig_gram, corrupted_gram, params['metric'])
+        # If the entire distance matrix is non-finite, we can't align, skip
+        if not np.any(np.isfinite(distance_matrix)):
+            continue
         # Set any Nan/inf values to the largest distance
         distance_matrix[np.logical_not(np.isfinite(distance_matrix))] = np.max(
             distance_matrix[np.isfinite(distance_matrix)])
