@@ -3,112 +3,108 @@ Run the confidence score search experiment.
 '''
 
 import numpy as np
-import spearmint_utils
+import db_utils
 import scipy.stats
-import pymongo
 import joblib
 import align_dataset
+try:
+    import ujson as json
+except ImportError:
+    import json
+import glob
+import os
 
 # Path to corrupted datasets, created by create_data.py
-CORRUPTED_EASY = 'data/corrupted_easy/*.npz'
 CORRUPTED_HARD = 'data/corrupted_hard/*.npz'
+# Path to json results for parameter experiment
+PARAMETER_RESULTS_GLOB = 'results/parameter_experiment_gp/*.json'
+# Path where confidence experiment results should be written
+OUTPUT_RESULTS_PATH = 'results/confidence_experiment/'
 
 
-def check_one_seed(best_errors, seed, database, collection):
-    """Compute confidence score effectiveness for one parameter search seed.
+def check_trials(best_errors, parameter_trials):
+    """Compute confidence score effectiveness a set of parameter settings.
 
     Parameters
     ----------
     best_errors : np.ndarray
         Array of the per-song errors resulting from the best aligner
-    seed : int
-        Parameter search random seed to retrieve results from
-    database : str
-        Which database in the mongodb to use
-    collection : str
-        Which collection in the mongodb to use
+    parameter_trials: list
+        List of hyperparameter search trials on the "easy" dataset
     """
-    # Load a pymongo client which will be used to write results
-    client = pymongo.MongoClient()
     # Load in corrupted MIDI datasets
-    easy_dataset = align_dataset.load_dataset(CORRUPTED_EASY)
     hard_dataset = align_dataset.load_dataset(CORRUPTED_HARD)
-    # Load in all parameter search experiment results for this seed
-    param_settings, objectives = spearmint_utils.get_experiment_results(
-        'alignment_search_seed_{}'.format(seed))
-    # Sort the parameter settings by their objective value
-    param_settings = [param_settings[n] for n in np.argsort(objectives)]
-    for params in param_settings:
-        # Get the results of aligning the easy dataset with these params
-        easy_results = align_dataset.align_dataset(params, easy_dataset)
+    # Grab objective values for each trial
+    objectives = [np.mean(r['results']['mean_errors'])
+                  for r in parameter_trials]
+    # Sort the results settings by their objective value
+    parameter_trials = [parameter_trials[n] for n in np.argsort(objectives)]
+    for trial in parameter_trials:
+        easy_results = trial['results']
         # Retrieve the errors for each song
-        easy_errors = np.array([r['mean_error'] for r in easy_results])
+        easy_errors = np.array(easy_results['mean_errors'])
         # Run a paired difference test of the errors, i.e. test whether the
         # distribution of differences between best_errors[n] and
         # easy_errors[n] is significantly different from 0 under a t-test
         _, r_score = scipy.stats.ttest_1samp(best_errors - easy_errors, 0)
+        # When best_errors = easy_errors, the r_score will be NaN
+        if np.isnan(r_score):
+            r_score = 1.
+        # Replace 'norm' param with numeric infinity if it's 'inf'
+        params = trial['params']
+        if params['norm'] == str(np.inf):
+            params['norm'] = np.inf
         # Align the hard dataset using these params and retrieve errors
         hard_results = align_dataset.align_dataset(params, hard_dataset)
-        hard_errors = np.array([r['mean_error'] for r in hard_results])
+        hard_errors = np.array(hard_results['mean_errors'])
         # Create results dict, storing the r_csore and errors, plus stuff below
         result = dict(r_score=r_score,
                       easy_errors=easy_errors.tolist(),
-                      hard_errors=hard_errors.tolist(),
-                      **params)
+                      hard_errors=hard_errors.tolist())
         # Try all combinations of score normalization
         for include_pen in [0, 1]:
             for length_normalize in [0, 1]:
                 for mean_normalize in [0, 1]:
-                    # Construct a name for this normalization scheme
-                    name = ''
-                    # Retrieve the score with or without penalties included
-                    if include_pen:
-                        scores = np.array(
-                            [r['raw_score'] for r in hard_results])
-                        name += 'raw'
-                    else:
-                        scores = np.array(
-                            [r['raw_score_no_penalty'] for r in hard_results])
-                        name += 'no_penalty'
-                    # Optionally normalize by path length
-                    if length_normalize:
-                        scores /= np.array(
-                            [r['path_length'] for r in hard_results])
-                        name += '_len_norm'
-                    # Optionally normalize by distance matrix mean
-                    if mean_normalize:
-                        scores /= np.array(
-                            [r['distance_matrix_mean'] for r in hard_results])
-                        name += '_mean_norm'
-                    # Compute rank correlation coefficient
-                    rank_corr = scipy.stats.spearmanr(hard_errors, scores)
-                    # Store the rank correlation coefficient
-                    result[name + '_rank_corr'] = rank_corr
-                    # Store the scores
-                    result[name + '_scores'] = scores.tolist()
-        # Write resultt to database
-        client[database][collection].insert(result)
-    # Close the mongodb connection
-    client.close()
+                    for results, name in zip([hard_results, easy_results],
+                                             ['hard', 'easy']):
+                        # Retrieve the score with or without penalties included
+                        if include_pen:
+                            scores = np.array(results['raw_scores'])
+                            name += '_penalty'
+                        else:
+                            scores = np.array(results['raw_scores_no_penalty'])
+                            name += '_no_penalty'
+                        # Optionally normalize by path length
+                        if length_normalize:
+                            scores /= np.array(results['path_lengths'])
+                            name += '_len_norm'
+                        # Optionally normalize by distance matrix mean
+                        if mean_normalize:
+                            scores /= np.array(
+                                results['distance_matrix_means'])
+                            name += '_mean_norm'
+                        # Store the scores
+                        result[name + '_scores'] = scores.tolist()
+        # Write out this result
+        db_utils.dump_result(params, result, OUTPUT_RESULTS_PATH)
 
 if __name__ == '__main__':
-    # Retrieve the best parameter settings/objectives for each seed used
-    best_params = []
-    best_objectives = []
-    for n in range(10):
-        p, o = spearmint_utils.get_best_result(
-            'alignment_search_seed_{}'.format(n))
-        best_params.append(p)
-        best_objectives.append(o)
-    # Find the best result among the best results for all seeds
-    best_params = best_params[np.argmin(best_objectives)]
-    easy_dataset = align_dataset.load_dataset(CORRUPTED_EASY)
-    # Get the mean error on the easy dataset for this result
-    best_results = align_dataset.align_dataset(best_params, easy_dataset)
-    best_errors = [r['mean_error'] for r in best_results]
+    if not os.path.exists(OUTPUT_RESULTS_PATH):
+        os.makedirs(OUTPUT_RESULTS_PATH)
+    # Load in all parameter search experiment results
+    parameter_trials = []
+    for result_file in glob.glob(PARAMETER_RESULTS_GLOB):
+        with open(result_file) as f:
+            parameter_trials.append(json.load(f))
+    # Grab objective values for each trial
+    objectives = [np.mean(r['results']['mean_errors'])
+                  for r in parameter_trials]
+    best_errors = np.array(
+        parameter_trials[np.argmin(objectives)]['results']['mean_errors'])
+    # Split up the parameter trials into 10 roughly equally sized divisions
+    split_parameter_trials = [parameter_trials[n::10] for n in range(10)]
 
-    # Run check_one_seed for all seeds in parallel
+    # Run check_trials for all splits in parallel
     joblib.Parallel(n_jobs=10, verbose=51)(
-        joblib.delayed(check_one_seed)(
-            best_errors, seed, 'confidence_experiment', 'results')
-        for seed in range(10))
+        joblib.delayed(check_trials)(best_errors, trials)
+        for trials in split_parameter_trials)
