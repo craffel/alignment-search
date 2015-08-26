@@ -70,6 +70,8 @@ def dump_result(params, results, output_path):
     output_path : str
         Where to write out the json file
     """
+    # Make a copy of params to avoid writing in-place below
+    params = dict(params)
     # ujson can't handle infs, so we need to replace them manually:
     if params['norm'] == np.inf:
         params['norm'] = str(np.inf)
