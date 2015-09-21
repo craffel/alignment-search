@@ -79,7 +79,8 @@ if __name__ == '__main__':
                 ('params', params)]))
     # Sort aligners by their best_score, descendin (
     aligner_performance.sort(key=lambda x: x['best_score'], reverse=True)
+    print "Systems below threshold: {}".format(len(aligner_performance))
     # Print table of all aligners
     print tabulate.tabulate(
-        aligner_performance[:20],
+        aligner_performance,
         headers=dict((k, k) for k in aligner_performance[0]))
